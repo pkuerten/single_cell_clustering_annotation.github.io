@@ -4,4 +4,5 @@
 
 ---
 
+In order to follow the tutorial, you can either use our [index.md file](index.md) or visit our [website]()
 
