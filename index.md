@@ -1,10 +1,6 @@
 ---
 title: "Single Cell Workshop - Clustering and cell type identification"
 author: "Asif Javed"
-output:
-  html_document:
-    toc: true
-    toc_float: true
 ---
 
 
