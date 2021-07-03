@@ -26,6 +26,18 @@ install.packages("hdf5r")
 ```r
 install.packages("clustree")
 ```
+
+```r
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+```
+```r
+BiocManager::install("SingleR")
+```
+```r
+BiocManager::install("celldex")
+```
+
 And loading them into R.
 ```r
 # load into your session
@@ -33,6 +45,8 @@ library(dplyr)
 library(Seurat)
 library(patchwork)
 library(clustree)
+library(SingleR)
+library(celldex)
 ```
 ## Read in the dataset and Create a Seurat object
 
@@ -133,7 +147,118 @@ We use umap to visualise the dataset throughout this workshop. Computing it earl
 pbmc <- RunUMAP(pbmc, dims = 1:20, verbose = FALSE)
 ```
 
+## Clustering
+
+Seurat default clustering algorithm uses a graph based clustering approach. It is inspired by previous publications developing and refining the approach. In 
+particular the [Phenograph paper](http://www.ncbi.nlm.nih.gov/pubmed/26095251) is highly recommended to those who want to understand the approach better. Briefly 
+the clustering algorithm first computes K nearest neighbors of each cell in PCA space. Jaccard similarity between cells is calculated based on shared neighborhood.
+The information is aggregated using Louvain algorithm to iteratively group the cells together.
 
 ```r
+pbmc <- FindNeighbors(pbmc, dims = 1:20)
+```
 
+<b>Second big decision - choosing the resolution of clustering. </b> Small number will generate admixed clusters while large number would give 
+too many clusters which are unlikely to be meaningful. 
+
+:memo: For your own research spend a bit of time optimising the resolution choice. It may be helpful to try the all downstream analysis with multiple candidate 
+choices of resolution.
+
+Here we try three values of resolution and use clustree to study the impact. We also save the pbmc object after computing the clusters.
+
+```r
+pbmc <- FindClusters(object = pbmc,  resolution = c(0.5, 1, 1.5),  dims.use = 1:10,  save.SNN = TRUE)
+saveRDS(pbmc, file = "pbmc_tutorial.rds")
+clustree(pbmc)
+```
+The three rows represent the cell assignment at each value of resolution. The node sizes in each row indicate the number of cells in that cluster. Arrows between
+rows show how the cluster assignment changes with increasing resolution. Stable clusters may change names but the cells would hang out together at different
+resolutions. Some clusters may split into two (or more). That suggests increasing resolution. But if you see a lot of back and forth jumping between clusters, it
+indicates less stability. In  your own data, its better to over cluster, examine genes and then manually choose which clusters to merge.
+
+We chose resolution=0.5 for further examination
+
+```r
+Idents(pbmc) <- pbmc$RNA_snn_res.0.5
+DimPlot(pbmc, reduction = "umap", label=TRUE)
+```
+
+## Cluster enriched markers
+Next, for every cluster we want to examine features (aka markers or genes) which are highly expressed in this cluster in comparison to the rest of the cells. We
+use 'roc' which estimates the classification power of each marker (0 implies random, 1 implies perfect). We can do this cluster by cluster or for all clusters at 
+the same time. 
+
+```r
+cluster0.markers <- FindMarkers(pbmc, ident.1 = 0, logfc.threshold = 0.25, test.use = "roc", only.pos = TRUE)
+```
+
+:warning: Doing this for all clusters is quite time consuming. If you want to take a break. Initiate this before doing so. It may take up to 30 mins to compute. 
+If you are running late in terms of the tutorial time, skip this and the following heatmap for now.
+
+```r
+cluster.all.markers0.5 <- FindAllMarkers(pbmc, logfc.threshold = 0.25, test.use = "roc", only.pos = TRUE, min.pct = 0.25)
+```
+
+The heatmap gives a good pictorial representation of clusters which share highly expressed markers. Notice the relation between these clusters in the umap?
+
+```r
+cluster.all.markers0.5  %>%
+    group_by(cluster) %>%
+    top_n(n = 5, wt = avg_log2FC) -> top5
+
+DoHeatmap(pbmc, features = top5$gene) + NoLegend()
+```
+
+Next we pick some markers which tend to work well for PBMC datasets. Many of these are from the cluster.all.markers0.5
+
+```r
+markers.to.plot <- c("CD3D", "HSPH1", "SELL", "CD14", "LYZ", "GIMAP5", "CACYBP", "GNLY", "NKG7", "CCL5", "CD8A", "MS4A1", "CD79A", "FCGR3A", "MS4A7", "S100A9", "HLA-DQA1","GPR183", "PPBP", "GNG11", "TSPAN13", "IL3RA", "FCER1A", "CST3", "S100A12")
+
+DotPlot(pbmc, features = markers.to.plot, cols = c("blue", "red"), dot.scale = 8) +RotatedAxis()
+```
+```r
+VlnPlot(pbmc, features = c("MS4A1", "CD79A"))
+```
+```r
+VlnPlot(pbmc, features = c("NKG7", "GNLY"))
+```
+```r
+VlnPlot(pbmc, features = c("FCGR3A", "MS4A7"))
+```
+```r
+VlnPlot(pbmc, features = c("PPBP"))
+```
+```r
+VlnPlot(pbmc, features = c("FCER1A", "CST3"))	
+```
+```r
+VlnPlot(pbmc, features = c("CD8A", "CD8B", "CD3D"))
+```
+```r
+FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP",  "CD8A"))
+```
+
+## Reference based cluster annotation
+
+The reference based cluster annotation is outside the `Seurat` package. For this we will use `SingleR` and begin by converting the information from Seurat data 
+to its format.
+
+```r
+sce <- GetAssayData(object = pbmc, assay = "RNA", slot = "data")
+```
+
+We will use data from [a classic paper](https://pubmed.ncbi.nlm.nih.gov/30726743/) which compares different immune cell types using sorted cells. Reference 
+based annotation allows direct comparison with highly curated sets. However on the down side the inference is dependent on the sets defined in the reference.
+
+```r
+refMonaco <- MonacoImmuneData()
+```
+The data format presents information at two levels: main cell types and finer resolution information
+
+```r
+prediction_Monaco_main <- SingleR(test=sce, ref=refMonaco, clusters=Idents(pbmc), labels=ref$label.main)
+prediction_Monaco_fine <- SingleR(test=sce, ref=refMonaco, clusters=Idents(pbmc), labels=ref$label.fine)
+
+predicted_Monaco <- data.frame(cluster=sort(unique(Idents(pbmc))), Monaco_main= prediction_Monaco_main$labels, Monaco_fine= prediction_Monaco_fine$labels)
+predicted_Monaco
 ```
