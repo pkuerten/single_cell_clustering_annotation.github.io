@@ -4,4 +4,4 @@
 
 ---
 
-[link](http://htmlpreview.github.io/?https://github.com/pkuerten/single_cell_clustering_annotation.github.io/blob/main/webpage.html)
+Please go to this [link](http://htmlpreview.github.io/?https://github.com/pkuerten/single_cell_clustering_annotation.github.io/blob/main/webpage.html) to access the tutorial.
