@@ -1,10 +1,3 @@
----
-title: "Single Cell Workshop - Clustering and cell type identification"
-author: "Asif Javed"
----
-
-
-
 ## Data download
 We will use a PBMC dataset containing about 10K cells. This dataset was made publicly availablbe by 10X Genomics and can be downloaded from: [link to data](https://www.dropbox.com/s/wn4mgwkkzqw2pox/SC3_v3_NextGem_DI_PBMC_10K_filtered_feature_bc_matrix.h5?dl=0)
 
@@ -18,32 +11,32 @@ We will focus on two specific key tasks for single cell RNA sequencing analysis:
 
 ## Install packages 
 Let's start by installing the necessary packages one by one
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 # install packages
 install.packages("Seurat",repos = "http://cran.us.r-project.org")
 ```
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 install.packages("hdf5r",repos = "http://cran.us.r-project.org")
 ```
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 install.packages("clustree",repos = "http://cran.us.r-project.org")
 ```
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager",repos = "http://cran.us.r-project.org")
 ```
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 BiocManager::install("SingleR")
 ```
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 BiocManager::install("celldex")
 ```
 
 And loading them into R.
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 # load into your session
 library(dplyr)
 library(Seurat)
@@ -64,7 +57,7 @@ a more compressed representation of the data. Seurat package includes multiple r
 While reading the data, we apply rudimentary quality control to discard low quality cells with less than 200 expressed features (genes) and lowly expressed 
 features observed in less than 3 cells. 
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 pbmc.data <- Read10X_h5(filename="C:/Users/alexa/Downloads/SC3_v3_NextGem_DI_PBMC_10K_filtered_feature_bc_matrix.h5")
 pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc10k", min.cells = 3, min.features = 200)
 pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
@@ -75,7 +68,7 @@ Next we calculate the percentage contribution of mitochondrial RNA to the total 
 undergoing apoptosis. We apply another round of quality control based on the distribution of mitochondrial content and number of features per cell. Too low features
 can indicate ambient RNA contamination in empty droplets. Too high features might be caused by multiple cells caught in the same droplet.
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 5000 & percent.mt < 15)
 ```
@@ -84,7 +77,7 @@ pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 5000 & percent
 After quality control measures to select cells for further analysis, the next steps involve normalizing the data, identifying highly variable features, and scaling. 
 Principal component analysis is also computed as many of the downstream analysis steps will be conducted in a lower dimensionality space.
 
-```{r}
+```r
 pbmc <- NormalizeData(pbmc)
 pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
 all.genes <- rownames(pbmc)
@@ -101,18 +94,18 @@ type specific genes would indicate the principal component is informative. Prese
 expect the major cell types to be T cells, B cells, NK cells, monocytes and so on.
 
 Examine top 10 PCs, you will see a lot of familiar gene names. 
-```{r}
+```r
 print(pbmc[["pca"]], dims = 1:10, nfeatures = 5)
 ```
 
 Examine PCs 40 to 50, the gene names would be be less familiar (at least to most of us). 
-```{r}
+```r
 print(pbmc[["pca"]], dims = 40:50, nfeatures = 5)
 ```
 
 Another way of visualizing this information is 
 
-```{r}
+```r
 VizDimLoadings(pbmc, dims = 1:2, reduction = "pca",balanced=TRUE)
 ```
 
@@ -120,10 +113,10 @@ Yet another approach which provides a pictorial representation. The cells and fe
 computational efficiency by ignoring the extreme cells which are less informative. Forcing it to be balanced gives an equal representation for both positive and
 negative correlations.
 
-```{r}
+```r
 DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
 ```
-```{r}
+```r
 DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
 ```
 
@@ -132,7 +125,7 @@ distribution against which the p values are estimated.
 
 :warning: This might take a bit of time to execute. Skip if you are running behind and focus only on the elbow plot next
 
-```{r,warning=FALSE}
+```r
 pbmc <- JackStraw(pbmc, num.replicate = 100)
 pbmc <- ScoreJackStraw(pbmc, dims = 1:20)
 JackStrawPlot(pbmc, dims = 1:20)
@@ -141,13 +134,13 @@ JackStrawPlot(pbmc, dims = 1:20)
 Elbow plots are the classic computer science way to examine the accumulative variability within the data represented by the addition of each principal 
 component.
 
-```{r}
+```r
 ElbowPlot(pbmc,ndims=50)
 ```
 Based on these plots, we chose 20 PCs for this workshop. But an argument can be made for any number in the range 15 to 30. 
 
 We use umap to visualize the dataset throughout this workshop. Computing it early before we need it.
-```{r,warning=FALSE}
+```r
 pbmc <- RunUMAP(pbmc, dims = 1:20, verbose = FALSE)
 ```
 
@@ -158,7 +151,7 @@ particular the [Phenograph paper](http://www.ncbi.nlm.nih.gov/pubmed/26095251) i
 the clustering algorithm first computes K nearest neighbors of each cell in PCA space. Jaccard similarity between cells is calculated based on shared neighborhood.
 The information is aggregated using Louvain algorithm to iteratively group the cells together.
 
-```{r}
+```r
 pbmc <- FindNeighbors(pbmc, dims = 1:20)
 ```
 
@@ -170,7 +163,7 @@ choices of resolution.
 
 Here we try three values of resolution and use clustree to study the impact. We also save the pbmc object after computing the clusters.
 
-```{r}
+```r
 pbmc <- FindClusters(object = pbmc,  resolution = c(0.5, 1, 1.5),  dims.use = 1:10,  save.SNN = TRUE)
 saveRDS(pbmc, file = "pbmc_tutorial.rds")
 clustree(pbmc)
@@ -183,7 +176,7 @@ indicates less stability. In  your own data, its better to over cluster, examine
 
 We chose resolution=0.5 for further examination
 
-```{r}
+```r
 Idents(pbmc) <- pbmc$RNA_snn_res.0.5
 DimPlot(pbmc, reduction = "umap", label=TRUE)
 ```
@@ -193,20 +186,20 @@ Next, for every cluster we want to examine features (aka markers or genes) which
 use 'roc' which estimates the classification power of each marker (0 implies random, 1 implies perfect). We can do this cluster by cluster or for all clusters at 
 the same time. 
 
-```{r}
+```r
 cluster0.markers <- FindMarkers(pbmc, ident.1 = 0, logfc.threshold = 0.25, test.use = "roc", only.pos = TRUE)
 ```
 
 :warning: Doing this for all clusters is quite time consuming. If you want to take a break. Initiate this before doing so. It may take up to 30 mins to compute. 
 If you are running late in terms of the tutorial time, skip this and the following heatmap for now.
 
-```{r}
+```r
 cluster.all.markers0.5 <- FindAllMarkers(pbmc, logfc.threshold = 0.25, test.use = "roc", only.pos = TRUE, min.pct = 0.25)
 ```
 
 The heatmap gives a good pictorial representation of clusters which share highly expressed markers. Notice the relation between these clusters in the umap?
 
-```{r}
+```r
 cluster.all.markers0.5  %>%
     group_by(cluster) %>%
     top_n(n = 5, wt = avg_log2FC) -> top5
@@ -216,30 +209,30 @@ DoHeatmap(pbmc, features = top5$gene) + NoLegend()
 
 Next we pick some markers which tend to work well for PBMC datasets. Many of these are from the cluster.all.markers0.5
 
-```{r}
+```r
 markers.to.plot <- c("CD3D", "HSPH1", "SELL", "CD14", "LYZ", "GIMAP5", "CACYBP", "GNLY", "NKG7", "CCL5", "CD8A", "MS4A1", "CD79A", "FCGR3A", "MS4A7", "S100A9", "HLA-DQA1","GPR183", "PPBP", "GNG11", "TSPAN13", "IL3RA", "FCER1A", "CST3", "S100A12")
 
 DotPlot(pbmc, features = markers.to.plot, cols = c("blue", "red"), dot.scale = 8) +RotatedAxis()
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("MS4A1", "CD79A"))
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("NKG7", "GNLY"))
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("FCGR3A", "MS4A7"))
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("PPBP"))
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("FCER1A", "CST3"))	
 ```
-```{r}
+```r
 VlnPlot(pbmc, features = c("CD8A", "CD8B", "CD3D"))
 ```
-```{r}
+```r
 FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP",  "CD8A"))
 ```
 
@@ -248,19 +241,19 @@ FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3
 The reference based cluster annotation is outside the `Seurat` package. For this we will use `SingleR` and begin by converting the information from Seurat data 
 to its format.
 
-```{r}
+```r
 sce <- GetAssayData(object = pbmc, assay = "RNA", slot = "data")
 ```
 
 We will use data from [a classic paper](https://pubmed.ncbi.nlm.nih.gov/30726743/) which compares different immune cell types using sorted cells. Reference 
 based annotation allows direct comparison with highly curated sets. However, on the down side the inference is dependent on the sets defined in the reference.
 
-```{r,warning=FALSE,results='hide',message=FALSE}
+```r
 refMonaco <- MonacoImmuneData()
 ```
 The data format presents information at two levels: main cell types and finer resolution information
 
-```{r}
+```r
 prediction_Monaco_main <- SingleR(test=sce, ref=refMonaco, clusters=Idents(pbmc), labels=refMonaco$label.main)
 prediction_Monaco_fine <- SingleR(test=sce, ref=refMonaco, clusters=Idents(pbmc), labels=refMonaco$label.fine)
 
