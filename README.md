@@ -4,4 +4,4 @@
 
 ---
 
-[link](https://github.com/pkuerten/single_cell_clustering_annotation.github.io/blob/main/webpage.html)
+[link](http://htmlpreview.github.io/?https://github.com/pkuerten/single_cell_clustering_annotation.github.io/blob/main/webpage.html)
