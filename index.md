@@ -1,6 +1,6 @@
 Single Cell Workshop - Clustering and cell type identification
 ================
-Asif Javed
+Alexandre Mondaini and Asif Javed 
 
 -   [Data download](#data-download)
 -   [Prerequisite](#prerequisite)
