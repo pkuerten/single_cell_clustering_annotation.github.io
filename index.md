@@ -553,3 +553,10 @@ predicted_Monaco
     ## 14      13       Monocytes          Classical monocytes
     ## 15      14     Progenitors             Progenitor cells
     ## 16      15         B cells                 Plasmablasts
+
+## Exercise 1 (mandatory) 
+Define the cell type of each cluster.
+:bulb: Compare Monaco predictions with cell type enriched markers
+
+## Exercise #2 (advanced) 
+Define the cell types at resolution 1.5
